@@ -145,9 +145,9 @@ int main(int argc, char* argv[]){
     	destfile = argv[2];
     }
     
-    msg("Searching for handle to file %s\n", sourcefile);
 #endif
 
+    msg("Searching for handle to file %s\n", sourcefile);
     DWORD device_path_len = DEVICE_PATH_LEN;
     PCHAR devicepath = (PCHAR)intAlloc(device_path_len);
     if (!ConvertDosPathToDevicePath(sourcefile, devicepath, &device_path_len)) {
