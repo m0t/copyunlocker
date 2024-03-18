@@ -8,6 +8,7 @@ ported from https://github.com/GhostPack/Lockless
 #include <ntstatus.h>
 #include <stdlib.h>
 
+#include "beacon.h"
 #include "bofdefs.h"
 #include "native.h"
 #include "util.h"
@@ -22,34 +23,34 @@ BOOL CopyFileFromHandle(const HANDLE srcFileHandle, const PCHAR dstFilePath){
 	//get file size
 	LARGE_INTEGER filesize;
 	if (!GetFileSizeEx(srcFileHandle, &filesize)){
-		err("GetFileSizeEx failed: %d\n", GetLastError());
+		err("GetFileSizeEx failed: 0x%lx\n", GetLastError());
 		return FALSE;
 	}
 	msg("File size %llu\n", filesize);
 	//create file mapping
-	HANDLE hMapFile = CreateFileMapping(srcFileHandle, NULL, PAGE_READONLY, 0, 0, NULL);
+	HANDLE hMapFile = CreateFileMappingA(srcFileHandle, NULL, PAGE_READONLY, 0, 0, NULL);
 	if (!hMapFile){
-		err("CreateFileMapping failed: %d\n", GetLastError());
+		err("CreateFileMappingA failed: 0x%lx\n", GetLastError());
 		return FALSE;
 	}
 	//map file to memory
 	HANDLE hMapView = MapViewOfFile(hMapFile, FILE_MAP_READ, 0, 0, 0);
 	if (!hMapView){
-		err("MapViewOfFile failed: %d\n", GetLastError());
+		err("MapViewOfFile failed: 0x%lx\n", GetLastError());
 		return FALSE;
 	}
 
 	//create/open file handle
-	HANDLE hDestFile = CreateFile(dstFilePath, GENERIC_READ | GENERIC_WRITE, FILE_SHARE_READ | FILE_SHARE_WRITE, NULL, CREATE_ALWAYS, 0, NULL);
+	HANDLE hDestFile = CreateFileA(dstFilePath, GENERIC_READ | GENERIC_WRITE, FILE_SHARE_READ | FILE_SHARE_WRITE, NULL, CREATE_ALWAYS, 0, NULL);
 	if (!hDestFile){
-		err("CreateFile failed: %d\n", GetLastError());
+		err("CreateFile failed: 0x%lx\n", GetLastError());
 		return FALSE;
 	}
 
 	//write mapped file to destination
 	DWORD written = 0;
 	if (!WriteFile(hDestFile, hMapView, filesize.QuadPart, &written, NULL)){
-		err("WriteFile failed: %d\n", GetLastError());
+		err("WriteFile failed: 0x%lx\n", GetLastError());
 		return FALSE;		
 	}
 	UnmapViewOfFile(hMapView);
@@ -66,8 +67,8 @@ BOOL ConvertDosPathToDevicePath(const PCHAR dosPath, PCHAR devicePath, PDWORD de
 	
 	//extract dos_path
 	char dos_device[4];
-	if (!GetVolumePathName(dosPath, dos_device, 4)){
-		err("GetVolumePathName failed: %d\n", GetLastError());
+	if (!GetVolumePathNameA(dosPath, dos_device, 4)){
+		err("GetVolumePathNameA failed: 0x%lx\n", GetLastError());
 		return FALSE;
 	}
 	dos_device[2] = '\0';
@@ -76,38 +77,40 @@ BOOL ConvertDosPathToDevicePath(const PCHAR dosPath, PCHAR devicePath, PDWORD de
 	PCHAR device_name = (PCHAR)intAlloc(DEVICE_NAME_MAXLEN);
 	DWORD device_name_len = QueryDosDevice(dos_device, device_name, DEVICE_NAME_MAXLEN);
 	if (!device_name_len){
-		err("QueryDosDevice failed: %d\n", GetLastError());
+		err("QueryDosDevice failed: 0x%lx\n", GetLastError());
 		return FALSE;
 	}
 	//msg("device: %s\n", device_name);
 
 	//create device path string
-	size_t pathLen = strlen(dosPath);
+	size_t pathLen = StringLengthA(dosPath);
 	PCHAR filepath = (PCHAR)intAlloc(pathLen + 1);
-	strncpy(filepath, dosPath+2, pathLen);
+	ZeroMemory(filepath, pathLen);
+	CopyMemoryEx(filepath, dosPath+2, pathLen);
 
 	if (pathLen + device_name_len > *devicePathSize){
 		err("Device path too big for buffer\n");
 		return FALSE;
 	}
 
-	snprintf(devicePath, *devicePathSize, "%s%s", device_name, filepath);
+	//snprintf(devicePath, *devicePathSize, "%s%s", device_name, filepath);
+	if (!StringConcat(devicePath, *devicePathSize, device_name, StringLengthA(device_name), filepath, StringLengthA(filepath))){
+
+	}
 	//msg("%s\n",devicePath);
 
 	return TRUE;
 }
 
 #ifdef BOF /****** BOF ENTRY FUNCTION ******/
-#include "beacon.h"
-void go(char * args, int alen) 
+void go(char * args, int alen){
 #else /****** TEST FUNCTION ******/
 #include <time.h>
 #include <stdio.h>
-int main(int argc, char* argv[])
-#endif   
-{
-	//do we need to adjust privileges first?
+int main(int argc, char* argv[]){
 	int result = -1;
+#endif   
+	//do we need to adjust privileges first?
 	NTSTATUS ntstatus = 0;
     PSYSTEM_HANDLE_INFORMATION handleTableInformation = NULL;
     ULONG handleInfoSize = HANDLEINFOSIZE;
@@ -118,10 +121,19 @@ int main(int argc, char* argv[])
     PCHAR sourcefile = NULL;
     PCHAR destfile = NULL;
     PCHAR filename = NULL;
-    BOOL copyfile = FALSE;
 
 #ifdef BOF
     //parse bof arguments
+	datap  parser = {0};
+	sourcefile = NULL;
+	destfile = NULL;
+	
+	BeaconDataParse(&parser, args, alen);
+	sourcefile = BeaconDataExtract(&parser, NULL);
+	destfile = BeaconDataExtract(&parser, NULL);
+
+	destfile = *destfile == 0 ? NULL : destfile;
+
 #else
     //parse cmd line args
     if (argc < 2){
@@ -130,7 +142,6 @@ int main(int argc, char* argv[])
     }
     sourcefile = argv[1];
     if (argc >= 3){
-    	copyfile = TRUE;
     	destfile = argv[2];
     }
     
@@ -146,7 +157,7 @@ int main(int argc, char* argv[])
     //resolve nt functions
     _NtQuerySystemInformation NtQuerySystemInformation = (_NtQuerySystemInformation)GetLibraryProcAddress("ntdll.dll", "NtQuerySystemInformation");
     _NtQueryObject NtQueryObject = (_NtQueryObject)GetLibraryProcAddress("ntdll.dll", "NtQueryObject");
-    _RtlAdjustPrivilege RtlAdjustPrivilege = (_RtlAdjustPrivilege)GetLibraryProcAddress("ntdll.dll", "RtlAdjustPrivilege");
+    //_RtlAdjustPrivilege RtlAdjustPrivilege = (_RtlAdjustPrivilege)GetLibraryProcAddress("ntdll.dll", "RtlAdjustPrivilege");
 
     //BOOLEAN prevPrivState = FALSE;
     //ntstatus = RtlAdjustPrivilege(20, TRUE, FALSE, &prevPrivState);
@@ -162,20 +173,20 @@ int main(int argc, char* argv[])
     	ntstatus = NtQuerySystemInformation(SYSTEMHANDLEINFORMATION, handleTableInformation, handleInfoSize, NULL);
     }
     if (!NT_SUCCESS(ntstatus)){
-    	err("NtQuerySystemInformation failed: 0x%x\n", ntstatus);
+    	err("NtQuerySystemInformation failed: 0x%lx\n", ntstatus);
         goto exit;
     }
     //iterate all process to identify all open file handles
 	HANDLE hProcSnap = CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS,0);
 	if (!hProcSnap || hProcSnap == INVALID_HANDLE_VALUE){
-	    err("CreateToolhelp32Snapshot failed: %d\n", GetLastError());
+	    err("CreateToolhelp32Snapshot failed: 0x%lx\n", GetLastError());
 	    goto exit;
 	}
 	PROCESSENTRY32 process;
     ZeroMemory(&process, sizeof(process));
     process.dwSize = sizeof(process);
     if (!Process32First(hProcSnap, &process)){
-    	err("Process32First failed: %d\n", GetLastError());
+    	err("Process32First failed: 0x%lx\n", GetLastError());
 	    goto exit;
     }
     do {
@@ -197,7 +208,7 @@ int main(int argc, char* argv[])
         	//if (!NT_SUCCESS(ntstatus))
         	if (!DuplicateHandle(processHandle, (HANDLE)handle.HandleValue, NtCurrentProcess, &dupHandle, 0, FALSE, DUPLICATE_SAME_ACCESS))
             {
-            	//err("DuplicateHandle failed: %d\n", GetLastError());
+            	//err("DuplicateHandle failed: 0x%lx\n", GetLastError());
                 continue;
             }
             if (GetFileType(dupHandle) != FILE_TYPE_DISK){
@@ -210,7 +221,7 @@ int main(int argc, char* argv[])
             ntstatus = NtQueryObject(dupHandle, OBJECTNAMEINFORMATION, objectNameInfo, objectNameLength, &retLen);
         	if (!NT_SUCCESS(ntstatus))
             {
-            	err("NtQueryObject failed: 0x%x\n", ntstatus);
+            	err("NtQueryObject failed: 0x%lx\n", ntstatus);
                 goto exit;
             }
             UNICODE_STRING ufn = objectNameInfo->Name;
@@ -219,10 +230,10 @@ int main(int argc, char* argv[])
             //msg("file: %s\n", filename);
             //TODO: comparison should be case insensitive
             if (!cmpstr(filename, devicepath)){
-            	msg("File open by PID %d\n", pid);
+            	msg("File open by PID %lu\n", pid);
 
             	//target file handle found, copy file
-            	if (copyfile){
+            	if (destfile){
             		//msg("copying\n");
             		if (CopyFileFromHandle(dupHandle, destfile)){
             			msg("File copied successfully\n");

@@ -1,4 +1,5 @@
-pragma once
+#pragma once
+#ifdef BOF
 /*
  * Beacon Object Files (BOF)
  * -------------------------
@@ -166,3 +167,5 @@ DECLSPEC_IMPORT size_t BeaconDataStoreMaxEntries();
 
 /* Beacon User Data functions */
 DECLSPEC_IMPORT char * BeaconGetCustomUserData();
+
+#endif

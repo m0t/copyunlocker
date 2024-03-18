@@ -1,6 +1,15 @@
 alias copyunlocker {
-	local('$barch $handle $data $args');
+	local('$barch $handle $data $args $sourcefile $destfile');
 	
+	if(size(@_) < 2)
+	{
+		berror($1, "usage: copyunlocker <source file> [<dest file>]");
+		return;
+	}
+
+	$sourcefile = $2;
+	$destfile = iff(-istrue $3, $3, "");
+
 	# figure out the arch of this session
 	$barch  = barch($1);
 	
@@ -10,9 +19,12 @@ alias copyunlocker {
 	closef($handle);
 	
 	# pack our arguments
-	$args   = bof_pack($1, "zi", "Hello World", 1234);
-	
-	btask($1, "Running");
+	$args   = bof_pack($1, "zz", $sourcefile, $destfile);
 	
 	beacon_inline_execute($1, $data, "go", $args);
 }
+
+beacon_command_register(
+	"copyunlocker", 
+	"Find handle to target file locked by another process, optionally copy locked file by duplicating handle in current process", 
+	"Synopsis: copyunlocker <source file> [<dest file>]\n"); 

@@ -5,7 +5,7 @@ LFLAGS := $(LFLAGS) -Wl,-s,--no-seh,--enable-stdcall-fixup
 LDFLAGS := --no-seh --enable-stdcall-fixup -r -S
 
 default:
-	$(CC_X64) -c copyunlocker.c $(CFLAGS)  $(LFLAGS) -o copyunlocker.x64.o
+	$(CC_X64) -c copyunlocker.c $(CFLAGS) -DBOF $(LFLAGS) -Wall -o copyunlocker.x64.o
 
 test: 
-	$(CC_X64) copyunlocker.c $(CFLAGS)  $(LFLAGS) -o copyunlocker.exe
+	$(CC_X64) copyunlocker.c $(CFLAGS)  $(LFLAGS) -Wall -o copyunlocker.exe

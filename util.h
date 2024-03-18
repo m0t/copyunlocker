@@ -5,6 +5,53 @@ PVOID GetLibraryProcAddress(PSTR LibraryName, PSTR ProcName)
     return GetProcAddress(GetModuleHandleA(LibraryName), ProcName);
 }
 
+SIZE_T StringLengthA(_In_ LPCSTR String)
+{
+	LPCSTR String2;
+
+	for (String2 = String; *String2; ++String2);
+
+	return (String2 - String);
+}
+
+PCHAR StringCopyA(_Inout_ PCHAR String1, _In_ LPCSTR String2)
+{
+	PCHAR p = String1;
+
+	while ((*p++ = *String2++) != 0);
+
+	return String1;
+}
+
+PVOID CopyMemoryEx(_Inout_ PVOID Destination, _In_ CONST PVOID Source, _In_ SIZE_T Length)
+{
+    PBYTE D = (PBYTE)Destination;
+    PBYTE S = (PBYTE)Source;
+
+    while (Length--)
+        *D++ = *S++;
+
+    return Destination;
+}
+
+/*
+s1 and s2 are the string sizes NOT counting terminating NULL, dstSz is the TOTAL destination string size, including termination
+*/
+BOOL StringConcat(PCHAR dest, size_t dstSz, PCSTR str1, size_t s1, PCSTR str2, size_t s2){
+    if (s1 > StringLengthA(str1) || s2 > StringLengthA(str2) || dstSz < s1 + s2 + 1){
+        //printf("bad input string size\n");
+        return FALSE;
+    }
+    for (int i = 0; i < s1; i++){
+        dest[i] = str1[i];
+    }
+    for (int i = 0; i < s2; i++){
+        dest[s1+i] = str2[i];
+    }
+    dest[dstSz-1] = '\0';
+    return TRUE;
+}
+
 INT cmpstr( _In_ LPCSTR String1, _In_ LPCSTR String2 )
 {
 	for ( ; *String1 == *String2; String1++, String2++ )
