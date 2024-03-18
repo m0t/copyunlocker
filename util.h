@@ -34,6 +34,19 @@ PVOID CopyMemoryEx(_Inout_ PVOID Destination, _In_ CONST PVOID Source, _In_ SIZE
     return Destination;
 }
 
+PCHAR ToLower(_In_ PCHAR Ptr)
+{
+    PCHAR sv = Ptr;
+    while (*sv != '\0')
+    {
+        if (*sv >= 'A' && *sv <= 'Z')
+            *sv = *sv + ('a' - 'A');
+
+        sv++;
+    }
+    return Ptr;
+}
+
 /*
 s1 and s2 are the string sizes NOT counting terminating NULL, dstSz is the TOTAL destination string size, including termination
 */

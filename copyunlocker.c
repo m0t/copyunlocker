@@ -228,8 +228,8 @@ int main(int argc, char* argv[]){
             filename = intAlloc(ufn.Length/2 + 1);
             WCharStringToCharString(filename, ufn.Buffer, ufn.Length/2 + 1);
             //msg("file: %s\n", filename);
-            //TODO: comparison should be case insensitive
-            if (!cmpstr(filename, devicepath)){
+            
+            if (!cmpstr(ToLower(filename), ToLower(devicepath))){
             	msg("File open by PID %lu\n", pid);
 
             	//target file handle found, copy file
